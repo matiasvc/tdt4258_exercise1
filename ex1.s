@@ -82,7 +82,39 @@
 	.type   _reset, %function
 	.thumb_func
 _reset: 
-	b .  // do nothing
+	ldr r1, =CMU_BASE // load CMU base addresses
+	ldr r2, [r1, #CMU_HFPERCLKEN0] // Load current value of #CMU_HFPERCLKEN0
+
+	mov r3, #1
+	lsl r3, r3, #CMU_HFPERCLKEN0_GPIO
+	orr r2, r2, r3
+
+	str r2, [r1, #CMU_HFPERCLKEN0]
+
+	ldr r1, =GPIO_PA_BASE
+	mov r2, #0x2
+	str r2, [r1, #GPIO_CTRL]
+
+	mov r2, #0x55555555
+	str r2, [r1, #GPIO_MODEH]
+
+	//mov r2, #0xFA00
+	//str r2, [r1, #GPIO_DOUT]
+
+	ldr r3, =GPIO_PC_BASE
+	mov r2, #0x33333333
+	str r2, [r3, #GPIO_MODEL]
+
+	mov r2, #0xFF
+	str r2, [r3, #GPIO_DOUT]
+
+poll:
+	ldr r2, [r3, #GPIO_DIN]
+	lsl r2, r2, #8
+	str r2, [r1, #GPIO_DOUT]
+
+	b poll
+
 
 /////////////////////////////////////////////////////////////////////////////
 //

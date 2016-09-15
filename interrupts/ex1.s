@@ -115,12 +115,25 @@ _reset:
 	mov r6, #0 // Set last state
 	mov r7, #40 // Set position
 
+	// Enable Interrupts
+	ldr r5, =GPIO_BASE
+	ldr r1, =0x22222222
+	str r1, [r5, GPIO_EXTIPSELL]
+	ldr r1, =0xFF
+	str r1, [r5, GPIO_EXTIFALL] // Enable interrupt on press down
 
-update: // Game loop
-	bl check_input
-	bl check_bounds
-	bl render
-	b update
+	ldr r1, =0xFF
+	str r1, [r5, GPIO_IEN] // Enable interrupt generation
+
+	ldr r1, =0x802
+	ldr r2, =ISER0
+	str r1, [r2, #0] // Enable interrupt handling
+
+	mov r1, #6
+	ldr r2, =SCR
+	str r1, [r2, #0]
+
+	wfi
 
 render: // Toggles the LEDs based on the position stored in r7
 	push {ip, lr}
@@ -137,32 +150,30 @@ render: // Toggles the LEDs based on the position stored in r7
 check_input:
 	push {ip, lr}
 	// Checks if left input was low last time and now is high
-	ldr r5, =GPIO_PC_BASE
-	ldr r4, [r5, #GPIO_DIN]
-	and r1, r4, #0xFE // Isolate bit 1 of input in r1
+	ldr r5, =GPIO_BASE
+	ldr r4, [r5, #GPIO_IF]
+	and r1, r4, #0x01 // Isolate bit 1 of input in r1
 
-	eor r2, r6, #0xFE
-	and r2, r2, #0xFE
+	and r2, r6, #0x01
 
 	and r3, r1, r2 // Logical AND together current input state and last input state
 
 	cmp r3, #0
 	beq left_input_done
 
-	add r7, r7, #1 // Move 1 left
+	sub r7, r7, #1 // Move 1 left
 left_input_done:
 	// Checks if right input was low last time and now is high
-	and r1, r4, #0xBF // Isolate bit 7 of input in r1
+	and r1, r4, #0x40 // Isolate bit 7 of input in r1
 
-	eor r2, r6, #0xBF 
-	and r2, r2, #0xBF
+	and r2, r6, #0x40
 
 	and r3, r1, r2  // Logical AND together current input state and last input state
 
 	cmp r3, #0
 	beq right_input_done
 
-	sub r7, r7, #1 // Move 1 right
+	add r7, r7, #1 // Move 1 right
 right_input_done:
 	mov r6, r4 // Store input in last input
 	pop {ip, pc}
@@ -227,8 +238,15 @@ delay_loop:
 /////////////////////////////////////////////////////////////////////////////
 
     .thumb_func
-gpio_handler:  
-	b .  // do nothing
+gpio_handler: // Run one render loop each time we get a GIPO interrupt
+	push {ip, lr}
+	bl check_input
+	bl check_bounds
+	bl render
+	ldr r0, =GPIO_BASE
+	ldr r1, [r0, GPIO_IF]
+	str r1, [r0, GPIO_IFC]
+	pop {ip, pc}
 
 /////////////////////////////////////////////////////////////////////////////
 
